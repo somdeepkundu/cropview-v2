@@ -3,8 +3,7 @@
  * Leaflet-based map visualization for captures and footprints
  */
 
-import L from 'leaflet';
-import * as turf from '@turf/turf';
+const turf = window.turf;
 
 export class MapManager {
   constructor() {
@@ -17,6 +16,13 @@ export class MapManager {
   }
 
   init(containerId = 'map') {
+    // Leaflet is loaded from CDN in HTML
+    const L = window.L;
+    if (!L) {
+      console.error('Leaflet not loaded');
+      return;
+    }
+
     // Initialize Leaflet map
     this.map = L.map(containerId).setView([19.0760, 72.8760], 13);
 

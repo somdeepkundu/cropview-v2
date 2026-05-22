@@ -3,7 +3,7 @@
  * GeoJSON, CSV, and ZIP export functionality
  */
 
-import JSZip from 'jszip';
+const JSZip = window.JSZip;
 
 export class ExportManager {
   static buildGeoJSON(project, captures) {
