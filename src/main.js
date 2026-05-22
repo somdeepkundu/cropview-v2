@@ -19,6 +19,67 @@ const app = {
   map: null
 };
 
+// Permission flow
+async function grantPermissions() {
+  console.log('Requesting permissions...');
+
+  try {
+    // Request camera
+    const cameraResult = await app.camera.request();
+    if (!cameraResult.success) {
+      console.warn('Camera permission:', cameraResult.error);
+      // Continue anyway - will use test pattern
+    }
+
+    // Request GPS
+    navigator.geolocation.watchPosition(
+      () => {}, // handled in actual start
+      (err) => console.warn('GPS error:', err),
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+
+    // Request compass (iOS)
+    await app.sensors.requestCompassPerm();
+
+    // Start the app
+    startApp();
+  } catch (err) {
+    console.error('Permission error:', err);
+    // Continue anyway
+    startApp();
+  }
+}
+
+async function startApp() {
+  console.log('🌱 CropView v2 starting...');
+
+  // Hide permission screen, show app
+  document.getElementById('permission-screen').classList.remove('active');
+  document.getElementById('app').style.display = 'block';
+
+  // Initialize map
+  app.map.init('map');
+
+  // Bind UI events
+  bindTabEvents();
+  bindCameraEvents();
+  bindMapEvents();
+  bindDataEvents();
+  bindExportEvents();
+  bindAboutModal();
+
+  // Start sensor fusion loop
+  startSensorLoop();
+
+  // Fallback camera if not available
+  if (!app.camera.stream) {
+    console.warn('Camera unavailable, using test pattern');
+    initCameraDebug();
+  }
+
+  console.log('✅ CropView v2 ready');
+}
+
 // Initialize app
 async function init() {
   console.log('🌱 CropView v2 initializing...');
@@ -28,32 +89,8 @@ async function init() {
   app.camera = new CameraManager();
   app.map = new MapManager();
 
-  // Initialize map
-  app.map.init('map');
-
-  // Bind UI events
-  bindTabEvents();
-  bindPermissionEvents();
-  bindCameraEvents();
-  bindMapEvents();
-  bindDataEvents();
-  bindExportEvents();
-  bindAboutModal();
-
-  // Try to get compass permission on iOS
-  await app.sensors.requestCompassPerm();
-
-  // Start sensor fusion loop
-  startSensorLoop();
-
-  // Start camera (fallback if not available)
-  await app.camera.request();
-  if (!app.camera.stream) {
-    console.warn('Camera unavailable, using test pattern');
-    initCameraDebug();
-  }
-
-  console.log('✅ CropView v2 ready');
+  // Bind permission button
+  document.getElementById('btn-grant-perms')?.addEventListener('click', grantPermissions);
 }
 
 // Sensor fusion update loop
@@ -115,11 +152,6 @@ function bindTabEvents() {
       }
     });
   });
-}
-
-// Permission handling
-function bindPermissionEvents() {
-  // Will be called by START SESSION
 }
 
 // Camera controls

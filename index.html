@@ -10,7 +10,22 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 </head>
 <body>
-  <div id="app">
+  <!-- PERMISSION SCREEN (shown first) -->
+  <div id="permission-screen" class="permission-screen active">
+    <div class="perm-content">
+      <div style="font-size: 64px; margin-bottom: 1rem;">🌿</div>
+      <h2>CropView v2</h2>
+      <p>Geo-tagged field capture with native sensor fusion and satellite matching.</p>
+      <p style="color: var(--accent); font-size: 0.85rem; margin: 1rem 0;">
+        <strong>Requires:</strong> Camera · GPS · Device Orientation
+      </p>
+      <button id="btn-grant-perms" class="btn-primary" style="margin-top: 1rem; min-width: 200px;">
+        Grant Permissions & Continue
+      </button>
+    </div>
+  </div>
+
+  <div id="app" style="display: none;">
     <!-- Header -->
     <header class="header">
       <div class="header-left">
