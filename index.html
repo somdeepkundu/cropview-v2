@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CropView v2 - Field Crop Capture</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect fill='%232d5016' width='180' height='180'/><text x='50%' y='50%' font-size='90' fill='%2388cc33' text-anchor='middle' dy='.3em' font-weight='bold'>🌱</text></svg>">
+  <link rel="stylesheet" href="src/styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <h1>🌱 CropView v2</h1>
+        <span class="version">v2.0.0</span>
+      </div>
+      <div class="header-right">
+        <span id="capture-count" class="capture-count">0 captures</span>
+        <button id="btn-about" class="btn-icon">ℹ️</button>
+      </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="camera">📷 Camera</button>
+      <button class="tab-btn" data-tab="map">🗺️ Map</button>
+      <button class="tab-btn" data-tab="data">📊 Data</button>
+    </nav>
+
+    <!-- Camera Tab -->
+    <section id="camera-tab" class="tab-content active">
+      <div class="camera-container">
+        <video id="camera-feed" playsinline autoplay></video>
+
+        <!-- Camera Overlay -->
+        <div class="camera-overlay">
+          <!-- Crosshair -->
+          <div class="crosshair"></div>
+
+          <!-- Corners -->
+          <div class="corner top-left"></div>
+          <div class="corner top-right"></div>
+          <div class="corner bottom-left"></div>
+          <div class="corner bottom-right"></div>
+
+          <!-- Tilt Guide -->
+          <div class="tilt-guide">
+            <div class="tilt-zone">
+              <span class="tilt-label" id="tilt-label">--°</span>
+            </div>
+          </div>
+
+          <!-- Compass Rose -->
+          <div class="compass-container">
+            <svg class="compass-rose" id="compass-rose" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="45" fill="rgba(0,0,0,0.1)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+              <!-- N arrow -->
+              <path d="M 50 10 L 45 30 L 50 25 L 55 30 Z" fill="rgba(255,100,100,0.8)"/>
+              <!-- E, S, W markers -->
+              <text x="80" y="53" font-size="8" fill="rgba(255,255,255,0.6)" text-anchor="middle">E</text>
+              <text x="50" y="92" font-size="8" fill="rgba(255,255,255,0.6)" text-anchor="middle">S</text>
+              <text x="20" y="53" font-size="8" fill="rgba(255,255,255,0.6)" text-anchor="middle">W</text>
+              <text x="50" y="15" font-size="8" fill="rgba(255,255,255,0.6)" text-anchor="middle">N</text>
+            </svg>
+            <div class="compass-pointer"></div>
+          </div>
+
+          <!-- HUD (Heads-Up Display) -->
+          <div class="hud">
+            <div class="hud-item">
+              <span class="hud-label">GPS</span>
+              <span class="hud-value" id="hud-gps">--.--, --.--, --m</span>
+            </div>
+            <div class="hud-item">
+              <span class="hud-label">Heading</span>
+              <span class="hud-value" id="hud-heading">-- °</span>
+            </div>
+            <div class="hud-item">
+              <span class="hud-label">Accuracy</span>
+              <span class="hud-value" id="hud-accuracy">Acquiring...</span>
+            </div>
+          </div>
+
+          <!-- Sensor Badge -->
+          <div class="sensor-badge" id="sensor-badge">
+            <span class="sensor-source">--</span>
+            <span class="sensor-confidence">--%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Camera Controls -->
+      <div class="camera-controls">
+        <button id="btn-flip-camera" class="btn-control">🔄 Flip</button>
+        <button id="btn-capture" class="btn-capture">◉ CAPTURE</button>
+        <button id="btn-to-map" class="btn-control">Go to Map</button>
+      </div>
+
+      <!-- Kc Stage Selector -->
+      <div class="kc-selector">
+        <label>FAO-56 Growth Stage:</label>
+        <div class="kc-grid">
+          <button class="kc-btn" data-kc="1">Kc¹<br><small>Initial</small></button>
+          <button class="kc-btn" data-kc="2">Kc²<br><small>Dev</small></button>
+          <button class="kc-btn" data-kc="3">Kc³<br><small>Mid</small></button>
+          <button class="kc-btn" data-kc="4">Kc⁴<br><small>Late</small></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Map Tab -->
+    <section id="map-tab" class="tab-content">
+      <div id="map" class="map-container"></div>
+      <div class="map-controls">
+        <button id="btn-center" class="btn-control">🎯 Center</button>
+        <button id="btn-satellite" class="btn-control">🛰️ Satellite</button>
+        <button id="btn-footprints" class="btn-control">📐 Footprints</button>
+        <button id="btn-to-camera" class="btn-control">Back to Camera</button>
+      </div>
+    </section>
+
+    <!-- Data Tab -->
+    <section id="data-tab" class="tab-content">
+      <div class="data-panel">
+        <!-- Project Info -->
+        <div class="data-section">
+          <h3>Project</h3>
+          <div class="data-field">
+            <label>Name:</label>
+            <input type="text" id="project-name" placeholder="e.g., Wheat Field A">
+          </div>
+          <div class="data-field">
+            <label>Notes:</label>
+            <textarea id="project-notes" placeholder="Field observations..."></textarea>
+          </div>
+          <button id="btn-start-session" class="btn-primary">START SESSION</button>
+        </div>
+
+        <!-- Live Sensor Data -->
+        <div class="data-section" id="live-data" style="display:none;">
+          <h3>Live Sensor Data</h3>
+          <div class="sensor-grid">
+            <div class="sensor-row">
+              <span class="label">Latitude:</span>
+              <span class="value" id="data-lat">--</span>
+            </div>
+            <div class="sensor-row">
+              <span class="label">Longitude:</span>
+              <span class="value" id="data-lon">--</span>
+            </div>
+            <div class="sensor-row">
+              <span class="label">Altitude:</span>
+              <span class="value" id="data-alt">--</span>
+            </div>
+            <div class="sensor-row">
+              <span class="label">GPS Accuracy:</span>
+              <span class="value" id="data-gps-acc">--</span>
+            </div>
+            <div class="sensor-row">
+              <span class="label">Heading (fused):</span>
+              <span class="value" id="data-heading">--</span>
+            </div>
+            <div class="sensor-row">
+              <span class="label">Tilt:</span>
+              <span class="value" id="data-tilt">--</span>
+            </div>
+            <div class="sensor-row">
+              <span class="label">Footprint:</span>
+              <span class="value" id="data-footprint">--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Capture List -->
+        <div class="data-section" id="capture-list" style="display:none;">
+          <h3>Captures (<span id="capture-count-detail">0</span>)</h3>
+          <div id="captures-container"></div>
+        </div>
+
+        <!-- Export -->
+        <div class="data-section" id="export-section" style="display:none;">
+          <h3>Export</h3>
+          <button id="btn-export-zip" class="btn-secondary">📦 ZIP</button>
+          <button id="btn-export-geojson" class="btn-secondary">🗂️ GeoJSON</button>
+          <button id="btn-export-csv" class="btn-secondary">📋 CSV</button>
+          <button id="btn-clear-all" class="btn-danger">🗑️ Clear All</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Modals -->
+  <div id="about-modal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <h2>CropView v2</h2>
+      <p>Field crop capture with native sensor fusion.</p>
+      <p><strong>Version:</strong> 2.0.0</p>
+      <p><strong>Features:</strong></p>
+      <ul>
+        <li>Native Gyroscope, Accelerometer, Magnetometer</li>
+        <li>GPS positioning & heading fusion</li>
+        <li>FOV polygon generation</li>
+        <li>FAO-56 growth stage tagging</li>
+        <li>GeoJSON & CSV export</li>
+      </ul>
+      <p><strong>Contact:</strong> somdeep@iitb.ac.in</p>
+      <button id="btn-close-about" class="btn-primary">Close</button>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
