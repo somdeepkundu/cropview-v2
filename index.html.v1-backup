@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>CropView v2 — Geo-Camera Field Capture</title>
+  <title>CropView — Geo-Camera Field Capture</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -310,7 +310,7 @@
   <div id="about-box">
     <div id="about-x" onclick="closeAboutDirect()">✕</div>
     <div class="alogo">CROP<span>VIEW</span></div>
-    <div class="aver">Version 2.0.0 · Layer 1 of 3 · 2026 · Directionality Rebuild</div>
+    <div class="aver">Version 1.2.1 · Layer 1 of 3 · 2026</div>
 
     <div class="asec">
       <h4>👨‍🔬 Developed By</h4>
@@ -344,7 +344,7 @@
     <div class="asec">
       <h4>🌐 Contact</h4>
       <p><a href="https://somdeepkundu.github.io" target="_blank">somdeepkundu.github.io</a><br/>
-      <a href="https://github.com/somdeepkundu/cropview-v2" target="_blank">github.com/somdeepkundu/cropview-v2</a></p>
+      <a href="https://github.com/somdeepkundu/cropview" target="_blank">github.com/somdeepkundu/cropview</a></p>
     </div>
 
     <div class="asec">
@@ -363,7 +363,7 @@
 
   <!-- HEADER -->
 <div id="header">
-  <div class="logo">CROP<span>VIEW</span> <span style="color:var(--green)">v2.0.0</span><span class="proj" id="hproj">—</span></div>
+  <div class="logo">CROP<span>VIEW</span><span class="proj" id="hproj">—</span></div>
   <div id="hdr-right">
     <span id="cap-badge">0 cap</span>
     <div id="gps-btn" onclick="openGPS()" style="font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 10px;cursor:pointer;transition:all .2s">📡 GPS</div>
@@ -432,7 +432,6 @@
         <div class="hbadge dim" id="h-lat">LAT —</div>
         <div class="hbadge dim" id="h-lon">LON —</div>
         <div class="hbadge dim" id="h-az">AZ —°</div>
-        <div class="hbadge dim" id="h-src">SRC —</div>
         <div class="hbadge dim" id="h-acc">ACC —</div>
       </div>
     </div>
@@ -515,14 +514,6 @@ const S = {
   lat:null,lon:null,alt:null,acc:null,altAcc:null,lastGPSTime:null,
   gpsSamples:0,
   az:0,tilt:45,fov:65,
-  // ── heading fusion (v2) ──
-  compassRaw:0,        // platform-corrected compass heading (true CW from north)
-  compassOffset:0,     // running calibration vs GPS truth
-  heading:0,           // fused heading used for the FOV polygon + exports
-  headingSrc:'—',      // active heading source label
-  gpsBearing:null,     // last GPS movement bearing
-  gpsBearingTime:0,    // timestamp of that bearing
-  prevFix:null,        // previous GPS fix, for bearing calc
   stage:null,
   caps:[],
   facing:'environment',stream:null,
@@ -530,31 +521,6 @@ const S = {
   sat:false,tile:null,
   proj:{name:'',notes:'',t:''}
 };
-
-/* ── HEADING FUSION (v2) ──────────────────────────────────────────
-   v1 bug: Android deviceorientationabsolute.alpha increases COUNTER-
-   clockwise, but v1 used it raw — mirroring the heading. The +180°
-   offset in calcPoly was a band-aid that only worked at one heading.
-   v2: correct per platform, then fuse with GPS movement bearing. */
-function screenAngle(){
-  if(screen.orientation && typeof screen.orientation.angle==='number') return screen.orientation.angle;
-  if(typeof window.orientation==='number') return window.orientation;
-  return 0;
-}
-function fuseHeading(){
-  // calibrated compass heading
-  const compass = ((S.compassRaw + S.compassOffset) % 360 + 360) % 360;
-  S.az = Math.round(compass);
-  // prefer GPS movement bearing when fresh (< 6s old) — pure geometry, no compass bugs
-  const gpsFresh = S.gpsBearing!==null && (Date.now()-S.gpsBearingTime) < 6000;
-  if(gpsFresh){
-    S.heading = S.gpsBearing;
-    S.headingSrc = 'GPS MOVE';
-  } else {
-    S.heading = compass;
-    S.headingSrc = Math.abs(S.compassOffset) > 1 ? 'COMPASS·CAL' : 'COMPASS';
-  }
-}
 
 /* ── PERMISSIONS ── */
 async function initPermissions(){
@@ -618,47 +584,23 @@ function startGPS(){
     if(g){
       S.lat=g.lat; S.lon=g.lon; S.alt=g.alt;
       S.acc=g.acc; S.altAcc=g.altAcc; S.gpsSamples=g.samples;
-
-      /* ── GPS movement bearing (v2) ──
-         Pure geometry — immune to every compass-convention bug.
-         When the user walks ≥3 m with a usable fix, derive a true
-         bearing and use it to (a) drive the heading directly and
-         (b) auto-calibrate the compass offset for when they stop. */
-      if(S.prevFix){
-        const moved = turf.distance(
-          turf.point([S.prevFix.lon,S.prevFix.lat]),
-          turf.point([g.lon,g.lat]), {units:'meters'});
-        if(moved >= 3 && g.acc < 25){
-          const br = (turf.bearing(
-            turf.point([S.prevFix.lon,S.prevFix.lat]),
-            turf.point([g.lon,g.lat])) + 360) % 360;
-          S.gpsBearing = br;
-          S.gpsBearingTime = Date.now();
-          // smooth the compass-vs-GPS offset (shortest angular diff)
-          const diff = ((br - S.compassRaw + 540) % 360) - 180;
-          S.compassOffset = S.compassOffset*0.7 + diff*0.3;
-          S.prevFix = {lat:g.lat, lon:g.lon};
-        }
-      } else {
-        S.prevFix = {lat:g.lat, lon:g.lon};
-      }
-      fuseHeading();
     }
     S.lastGPSTime=Date.now();
     recordGPSHistory(p.coords.accuracy);
-    updHUD(); updData(); updMapPos(); updFov();
+    updHUD(); updData(); updMapPos();
   },e=>toast('GPS: '+e.message,'err'),{enableHighAccuracy:true,maximumAge:0,timeout:15000});
 }
 
 /* ── COMPASS ── */
 function startCompass(){
   if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
-    // iOS: deviceorientation carries webkitCompassHeading (true CW heading)
+    // iOS: use deviceorientation which carries webkitCompassHeading
     DeviceOrientationEvent.requestPermission()
       .then(r=>{if(r==='granted') window.addEventListener('deviceorientation',onOri,true);})
       .catch(()=>window.addEventListener('deviceorientation',onOri,true));
   } else {
-    // Android: deviceorientationabsolute gives an absolute reference; alpha is CCW
+    // Android: deviceorientationabsolute gives true compass bearing; deviceorientation.alpha is arbitrary
+    // Only fall back to non-absolute if absolute never fires
     let gotAbsolute = false;
     window.addEventListener('deviceorientationabsolute', e=>{
       gotAbsolute = true;
@@ -670,20 +612,10 @@ function startCompass(){
   }
 }
 function onOri(e){
-  let heading;
-  if(e.webkitCompassHeading!==undefined && e.webkitCompassHeading!==null){
-    // iOS — already a true compass heading, clockwise from north
-    heading = e.webkitCompassHeading;
-  } else {
-    // Android deviceorientationabsolute — alpha increases COUNTER-clockwise.
-    // True compass heading = (360 - alpha), plus screen-orientation correction.
-    heading = (360 - (e.alpha||0) + screenAngle()) % 360;
-  }
-  S.compassRaw = (heading % 360 + 360) % 360;
-  S.tilt = Math.round(Math.abs(e.beta||45));
-  fuseHeading();
-  // rotate the rose so the calibrated heading meets the fixed top pointer
-  document.getElementById('crose').style.transform=`rotate(${-S.az}deg)`;
+  let a=e.alpha||0;
+  if(e.webkitCompassHeading!==undefined) a=e.webkitCompassHeading;
+  S.az=Math.round(a); S.tilt=Math.round(e.beta||45);
+  document.getElementById('crose').style.transform=`rotate(${-a}deg)`;
   updTilt(); updHUD(); updData(); updFov();
 }
 
@@ -715,15 +647,14 @@ function updTilt(){
 function updHUD(){
   document.getElementById('h-lat').textContent=S.lat?'LAT '+S.lat.toFixed(5):'LAT —';
   document.getElementById('h-lon').textContent=S.lon?'LON '+S.lon.toFixed(5):'LON —';
-  document.getElementById('h-az').textContent='HDG '+Math.round(S.heading)+'° '+azLbl(S.heading);
-  document.getElementById('h-src').textContent='SRC '+S.headingSrc;
+  document.getElementById('h-az').textContent='AZ '+S.az+'°';
   // Show smoothed accuracy + sample count
   const locked = S.acc && S.acc <= GPS_LOCK_THR;
   const smpTxt = S.gpsSamples > 1 ? ` ×${S.gpsSamples}` : '';
   document.getElementById('h-acc').textContent = S.acc
     ? (locked ? '⊕ ' : '') + 'ACC ±'+S.acc.toFixed(1)+'m'+smpTxt
     : 'ACQUIRING…';
-  ['h-lat','h-lon','h-az','h-src','h-acc'].forEach(id=>document.getElementById(id).classList.remove('warn','dim'));
+  ['h-lat','h-lon','h-az','h-acc'].forEach(id=>document.getElementById(id).classList.remove('warn','dim'));
   if(!S.lat) { document.getElementById('h-lat').classList.add('dim'); document.getElementById('h-lon').classList.add('dim'); }
   if(!S.acc) document.getElementById('h-acc').classList.add('warn');
   else if(S.acc>20) document.getElementById('h-acc').classList.add('warn');
@@ -746,7 +677,7 @@ function updData(){
   set('d-acc',S.acc?'± '+S.acc.toFixed(1)+' m'+(S.acc<=GPS_LOCK_THR?' ⊕ LOCKED':''):null);
   set('d-smp',S.gpsSamples>0?S.gpsSamples+' / '+GPS_BUF_MAX+' (drop-worst averaging)':null);
   set('d-alt',S.alt?S.alt.toFixed(1)+' m':null);
-  set('d-az',Math.round(S.heading)+'° '+azLbl(S.heading)+'  ['+S.headingSrc+']');
+  set('d-az',S.az+'° '+azLbl(S.az));
   set('d-tilt',S.tilt+'°');
   const fp=calcFP(); set('d-fp',fp?fp.w.toFixed(1)+' × '+fp.d.toFixed(1)+' m':null);
 }
@@ -762,11 +693,7 @@ function calcFP(){
 function calcPoly(){
   if(!S.lat||!S.lon) return null;
   const fp=calcFP(); if(!fp) return null;
-  // v2: project FORWARD along the fused true heading — NO 180° offset.
-  // The back camera looks where the phone's top edge points, which is
-  // exactly the compass heading. v1's +180° was a band-aid for the
-  // Android alpha mirror bug (now fixed at the source in onOri).
-  const O=turf.point([S.lon,S.lat]), b=((S.heading%360)+360)%360, hw=fp.w/2;
+  const O=turf.point([S.lon,S.lat]), b=(S.az+180)%360, hw=fp.w/2;
   const fc=turf.destination(O,fp.gd/1000,b), [fcx,fcy]=fc.geometry.coordinates;
   const fL=turf.destination(turf.point([fcx,fcy]),hw/1000,b-90).geometry.coordinates;
   const fR=turf.destination(turf.point([fcx,fcy]),hw/1000,b+90).geometry.coordinates;
@@ -822,8 +749,7 @@ function doCapture(){
   document.getElementById('vcont').appendChild(sl);setTimeout(()=>sl.remove(),700);
   const fp=calcFP(), poly=calcPoly();
   const cap={id:'CV-'+Date.now(),imgName:nm,timestamp:now.toISOString(),project:S.proj.name,
-    lat:S.lat,lon:S.lon,altitude:S.alt,accuracy:S.acc,az:Math.round(S.heading),
-    headingSrc:S.headingSrc,tilt:S.tilt,fov:S.fov,
+    lat:S.lat,lon:S.lon,altitude:S.alt,accuracy:S.acc,az:S.az,tilt:S.tilt,fov:S.fov,
     stage:S.stage,fp:fp?{w:fp.w,d:fp.d}:null,poly,thumb,full};
   S.caps.unshift(cap); saveCaps(); pinOnMap(cap); rendList();
   document.getElementById('cap-badge').textContent=S.caps.length+' cap';
@@ -925,12 +851,11 @@ async function doZIP(){
 
 function buildGJ(){
   return{type:'FeatureCollection',
-    metadata:{app:'CropView L1',version:'2.0.0',project:S.proj.name,notes:S.proj.notes,exported:new Date().toISOString(),captures:S.caps.length},
+    metadata:{app:'CropView L1',version:'1.1.0-alpha',project:S.proj.name,notes:S.proj.notes,exported:new Date().toISOString(),captures:S.caps.length},
     features:S.caps.map(c=>({type:'Feature',
       geometry:{type:'Point',coordinates:[c.lon,c.lat,c.altitude||0]},
       properties:{id:c.id,imgName:(c.imgName||c.id)+'.jpg',timestamp:c.timestamp,project:c.project,
-        heading_deg:c.az,azimuth_deg:c.az,heading_source:c.headingSrc||null,
-        tilt_deg:c.tilt,hfov_deg:c.fov,gps_accuracy_m:c.accuracy,kc_stage:c.stage,
+        azimuth_deg:c.az,tilt_deg:c.tilt,hfov_deg:c.fov,gps_accuracy_m:c.accuracy,kc_stage:c.stage,
         footprint_width_m:c.fp?.w||null,footprint_depth_m:c.fp?.d||null},
       ...(c.poly?{fov_polygon:{type:'Polygon',coordinates:[c.poly]}}:{})}))};
 }
@@ -948,8 +873,7 @@ function buildFootprintsGJ(){
       properties:{
         id:c.id, imgName:(c.imgName||c.id)+'.jpg',
         timestamp:c.timestamp, project:c.project,
-        heading_deg:c.az, azimuth_deg:c.az, heading_source:c.headingSrc||null,
-        tilt_deg:c.tilt, hfov_deg:c.fov,
+        azimuth_deg:c.az, tilt_deg:c.tilt, hfov_deg:c.fov,
         kc_stage:c.stage,
         footprint_width_m:c.fp?.w||null,
         footprint_depth_m:c.fp?.d||null,
@@ -957,7 +881,7 @@ function buildFootprintsGJ(){
       }
     }));
   return{type:'FeatureCollection',
-    metadata:{app:'CropView L1',version:'2.0.0',project:S.proj.name,
+    metadata:{app:'CropView L1',version:'1.1.0-alpha',project:S.proj.name,
       description:'FOV ground footprint polygons for all captures. Use for satellite pixel sampling in Layer 2.',
       exported:new Date().toISOString(),total:features.length},
     features};

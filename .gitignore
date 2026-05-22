@@ -5,4 +5,7 @@ dist/
 .env
 .env.local
 .vite/
-dist/
+
+# v1 reference dump — kept locally, not committed
+cropview-main/
+*.zip

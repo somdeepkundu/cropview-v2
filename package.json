@@ -1,16 +1,10 @@
 {
   "name": "cropview-v2",
   "version": "2.0.0",
-  "type": "module",
-  "description": "CropView v2 - Field crop capture with native sensor APIs and rebuilt directionality",
+  "description": "CropView v2 — single-file PWA for geo-tagged field crop capture with corrected directionality",
   "main": "index.html",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "serve": "npx serve ."
   },
-  "devDependencies": {
-    "vite": "^5.0.8"
-  },
-  "notes": "Leaflet, Turf.js, and JSZip are loaded from CDN in index.html"
+  "notes": "No build step. index.html is a self-contained app; Leaflet, Turf.js and JSZip load from CDN. Deploy by serving the folder (e.g. GitHub Pages)."
 }
