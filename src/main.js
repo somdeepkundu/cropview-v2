@@ -25,23 +25,31 @@ async function grantPermissions() {
 
   try {
     // Request camera
+    console.log('Requesting camera...');
     const cameraResult = await app.camera.request();
+    console.log('Camera result:', cameraResult);
     if (!cameraResult.success) {
       console.warn('Camera permission:', cameraResult.error);
       // Continue anyway - will use test pattern
     }
 
     // Request GPS
+    console.log('Requesting GPS...');
     navigator.geolocation.watchPosition(
-      () => {}, // handled in actual start
+      (pos) => {
+        console.log('GPS acquired:', pos.coords.latitude, pos.coords.longitude);
+      },
       (err) => console.warn('GPS error:', err),
       { enableHighAccuracy: true, timeout: 15000 }
     );
 
     // Request compass (iOS)
+    console.log('Requesting compass...');
     await app.sensors.requestCompassPerm();
+    console.log('Compass permission done');
 
     // Start the app
+    console.log('Starting app...');
     startApp();
   } catch (err) {
     console.error('Permission error:', err);
@@ -53,31 +61,51 @@ async function grantPermissions() {
 async function startApp() {
   console.log('🌱 CropView v2 starting...');
 
-  // Hide permission screen, show app
-  document.getElementById('permission-screen').classList.remove('active');
-  document.getElementById('app').style.display = 'block';
+  try {
+    // Hide permission screen, show app
+    const permScreen = document.getElementById('permission-screen');
+    const appDiv = document.getElementById('app');
 
-  // Initialize map
-  app.map.init('map');
+    console.log('Hiding permission screen...');
+    if (permScreen) permScreen.classList.remove('active');
+    if (appDiv) appDiv.style.display = 'block';
 
-  // Bind UI events
-  bindTabEvents();
-  bindCameraEvents();
-  bindMapEvents();
-  bindDataEvents();
-  bindExportEvents();
-  bindAboutModal();
+    // Small delay to ensure DOM is ready
+    await new Promise(resolve => setTimeout(resolve, 100));
 
-  // Start sensor fusion loop
-  startSensorLoop();
+    // Initialize map
+    console.log('Initializing map...');
+    try {
+      app.map.init('map');
+    } catch (mapErr) {
+      console.error('Map init error:', mapErr);
+    }
 
-  // Fallback camera if not available
-  if (!app.camera.stream) {
-    console.warn('Camera unavailable, using test pattern');
-    initCameraDebug();
+    // Bind UI events
+    console.log('Binding UI events...');
+    bindTabEvents();
+    bindCameraEvents();
+    bindMapEvents();
+    bindDataEvents();
+    bindExportEvents();
+    bindAboutModal();
+
+    // Start sensor fusion loop
+    console.log('Starting sensor fusion...');
+    startSensorLoop();
+
+    // Fallback camera if not available
+    if (!app.camera.stream) {
+      console.warn('Camera unavailable, using test pattern');
+      initCameraDebug();
+    }
+
+    console.log('✅ CropView v2 ready');
+    alert('✅ CropView v2 Ready!\n\nGrant camera/GPS access when prompted.');
+  } catch (err) {
+    console.error('startApp error:', err);
+    alert('⚠️ Error starting app. Check console.');
   }
-
-  console.log('✅ CropView v2 ready');
 }
 
 // Initialize app

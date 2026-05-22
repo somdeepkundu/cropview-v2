@@ -71,26 +71,43 @@ export class CameraManager {
 // For easier debugging and development
 export function initCameraDebug() {
   const video = document.getElementById('camera-feed');
+  if (!video) {
+    console.warn('Video element not found');
+    return;
+  }
 
   // Fallback test pattern if camera not available
   if (!video.srcObject) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 640;
-    canvas.height = 480;
-    const ctx = canvas.getContext('2d');
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 480;
+      const ctx = canvas.getContext('2d');
 
-    const drawPattern = () => {
-      ctx.fillStyle = '#2d5016';
-      ctx.fillRect(0, 0, 640, 480);
-      ctx.fillStyle = '#88cc33';
-      ctx.font = '24px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('Camera not available', 320, 240);
-      ctx.fillText('(using test pattern)', 320, 270);
-      requestAnimationFrame(drawPattern);
-    };
+      const drawPattern = () => {
+        ctx.fillStyle = '#2d5016';
+        ctx.fillRect(0, 0, 640, 480);
+        ctx.fillStyle = '#88cc33';
+        ctx.font = '24px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Camera not available', 320, 240);
+        ctx.fillText('(using test pattern)', 320, 270);
+        requestAnimationFrame(drawPattern);
+      };
 
-    drawPattern();
-    video.srcObject = canvas.captureStream(30);
+      drawPattern();
+      video.srcObject = canvas.captureStream(30);
+      console.log('Test pattern initialized');
+    } catch (e) {
+      console.error('Test pattern error:', e);
+      // Show a static message instead
+      video.style.background = '#2d5016';
+      video.style.display = 'flex';
+      video.style.alignItems = 'center';
+      video.style.justifyContent = 'center';
+      video.style.color = '#88cc33';
+      video.style.fontSize = '20px';
+      video.textContent = '📷 Camera not available';
+    }
   }
 }
