@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#080d1a" id="meta-tc"/>
+<title>CropView — ZIP Field Mapper</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+/* ════════════════════════════════════════════════════
+   CSS Variables
+═══════════════════════════════════════════════════ */
+:root {
+  --bg:       #080d1a;
+  --surf:     #0f1626;
+  --surf2:    #182035;
+  --surf3:    #1e2840;
+  --bdr:      #253047;
+  --acc:      #22d3ee;
+  --acc2:     #0ea5e9;
+  --acc3:     #818cf8;
+  --txt:      #e8f0fe;
+  --txt2:     #94a3b8;
+  --txt3:     #64748b;
+  --ok:       #34d399;
+  --warn:     #fbbf24;
+  --err:      #f87171;
+  --r:        10px;
+  --shadow:   0 8px 32px rgba(0,0,0,.55);
+  --pw:       340px;
+}
+[data-theme="light"] {
+  --bg:       #eef2f9;
+  --surf:     #ffffff;
+  --surf2:    #f1f5fd;
+  --surf3:    #e4eaf7;
+  --bdr:      #cdd6e8;
+  --acc:      #0284c7;
+  --acc2:     #0369a1;
+  --acc3:     #6366f1;
+  --txt:      #0d1626;
+  --txt2:     #475569;
+  --txt3:     #94a3b8;
+  --shadow:   0 4px 16px rgba(0,0,0,.1);
+}
+
+/* ════════════════════════════════════════════════════
+   Reset & Base
+═══════════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--txt);
+     display:flex;flex-direction:column;transition:background .25s,color .25s}
+button{font-family:inherit;cursor:pointer}
+input,select{font-family:inherit}
+
+/* ════════════════════════════════════════════════════
+   Top Bar
+═══════════════════════════════════════════════════ */
+#topbar{
+  height:54px;min-height:54px;
+  background:var(--surf);border-bottom:1px solid var(--bdr);
+  display:flex;align-items:center;gap:10px;padding:0 16px;
+  z-index:9000;box-shadow:0 1px 10px rgba(0,0,0,.25);
+  position:relative;
+}
+.logo{display:flex;align-items:center;gap:9px}
+.logo-ic{
+  width:32px;height:32px;border-radius:8px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--acc),var(--acc2));
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+}
+.logo-tx{line-height:1.15}
+.logo-tx b{font-size:.9rem;font-weight:800;color:var(--txt);letter-spacing:.2px}
+.logo-tx small{display:block;font-size:.6rem;color:var(--txt3);letter-spacing:.6px;text-transform:uppercase}
+.spacer{flex:1}
+
+/* top buttons */
+.tbtn{
+  background:var(--surf2);border:1px solid var(--bdr);color:var(--txt);
+  border-radius:8px;padding:5px 11px;font-size:.75rem;font-weight:600;
+  display:flex;align-items:center;gap:5px;transition:background .15s,border-color .15s;
+  white-space:nowrap;
+}
+.tbtn:hover{background:var(--surf3);border-color:var(--acc)}
+#theme-btn{width:36px;height:36px;padding:0;justify-content:center;font-size:17px}
+#toggle-panel-btn{display:none}
+
+/* project pill */
+#proj-pill{
+  display:none;align-items:center;gap:6px;
+  background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.25);
+  border-radius:20px;padding:3px 10px;max-width:160px;overflow:hidden;
+}
+#proj-pill span{font-size:.7rem;font-weight:700;color:var(--acc);
+                white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ════════════════════════════════════════════════════
+   Main Layout
+═══════════════════════════════════════════════════ */
+#main{flex:1;display:flex;overflow:hidden;position:relative}
+
+/* ════════════════════════════════════════════════════
+   Side Panel
+═══════════════════════════════════════════════════ */
+#panel{
+  width:var(--pw);min-width:var(--pw);
+  background:var(--surf);border-right:1px solid var(--bdr);
+  display:flex;flex-direction:column;overflow:hidden;
+  transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:100;
+}
+#panel-scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding-bottom:20px}
+#panel-scroll::-webkit-scrollbar{width:3px}
+#panel-scroll::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
+
+/* ── Section ── */
+.sec{padding:14px 16px 0}
+.sec-hd{
+  font-size:.63rem;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
+  color:var(--txt3);display:flex;align-items:center;gap:6px;
+  padding-bottom:8px;border-bottom:1px solid var(--bdr);margin-bottom:12px;
+}
+.sec-hd svg{opacity:.6}
+
+/* ── Drop zone ── */
+#dropzone{
+  border:2px dashed var(--bdr);border-radius:var(--r);
+  padding:28px 16px;text-align:center;cursor:pointer;
+  background:var(--surf2);transition:border-color .2s,background .2s;
+  position:relative;overflow:hidden;
+}
+#dropzone:hover,#dropzone.over{border-color:var(--acc);background:rgba(34,211,238,.05)}
+#dropzone .dz-ic{font-size:2.2rem;display:block;margin-bottom:8px}
+#dropzone .dz-t{font-size:.85rem;font-weight:700;color:var(--txt);margin-bottom:3px}
+#dropzone .dz-s{font-size:.71rem;color:var(--txt3)}
+#file-in{display:none}
+/* scan animation */
+#dropzone::after{
+  content:'';position:absolute;left:0;top:-50%;width:100%;height:35%;
+  background:linear-gradient(to bottom,transparent,rgba(34,211,238,.05),transparent);
+  animation:scan 3.5s ease-in-out infinite;pointer-events:none;
+}
+@keyframes scan{0%,100%{top:-35%}50%{top:120%}}
+
+/* ── Progress ── */
+#progress-wrap{display:none;padding:12px 16px 0}
+.prog-bar-bg{background:var(--surf3);border-radius:20px;height:6px;overflow:hidden;margin-bottom:6px}
+.prog-bar{height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));
+          border-radius:20px;width:0%;transition:width .3s}
+#prog-label{font-size:.71rem;color:var(--txt3);text-align:center}
+
+/* ── Project info card ── */
+#proj-info{display:none;margin:0 16px}
+.pinfo-card{
+  background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);
+  padding:10px 12px;
+}
+.pinfo-name{font-size:.9rem;font-weight:800;color:var(--txt);margin-bottom:2px}
+.pinfo-meta{font-size:.68rem;color:var(--txt3)}
+.pinfo-meta span{color:var(--acc);font-weight:600}
+
+/* ── Rotation ── */
+.rot-presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.rp-btn{
+  flex:1;min-width:46px;padding:6px 4px;text-align:center;
+  background:var(--surf2);border:1px solid var(--bdr);border-radius:7px;
+  font-size:.73rem;font-weight:700;color:var(--txt2);transition:all .15s;
+}
+.rp-btn.on,.rp-btn:hover{background:var(--acc);border-color:var(--acc);color:#000}
+.custom-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.custom-row input{
+  flex:1;background:var(--surf2);border:1px solid var(--bdr);border-radius:7px;
+  color:var(--txt);padding:5px 10px;font-size:.8rem;text-align:center;outline:none;
+}
+.custom-row input:focus{border-color:var(--acc)}
+.custom-row label{font-size:.72rem;color:var(--txt3);flex-shrink:0}
+
+/* direction toggle */
+.dir-wrap{display:flex;border:1px solid var(--bdr);border-radius:8px;overflow:hidden;margin-bottom:4px}
+.dir-btn{
+  flex:1;padding:7px 4px;font-size:.73rem;font-weight:700;
+  background:var(--surf2);border:none;color:var(--txt2);
+  display:flex;align-items:center;justify-content:center;gap:5px;transition:all .15s;
+}
+.dir-btn.on{background:var(--acc);color:#000}
+.dir-btn:first-child{border-right:1px solid var(--bdr)}
+
+/* ── Layer toggles ── */
+.tog-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.tog-row .tl{font-size:.76rem;color:var(--txt2)}
+.sw{position:relative;display:inline-block;width:36px;height:20px}
+.sw input{opacity:0;width:0;height:0}
+.sl{position:absolute;inset:0;background:var(--bdr);border-radius:20px;cursor:pointer;transition:.2s}
+.sl::before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;
+            background:#fff;border-radius:50%;transition:.2s}
+.sw input:checked+.sl{background:var(--acc)}
+.sw input:checked+.sl::before{transform:translateX(16px)}
+
+/* range row */
+.range-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.range-row .rl{font-size:.73rem;color:var(--txt2);flex-shrink:0;min-width:80px}
+.range-row input[type=range]{flex:1;accent-color:var(--acc)}
+.range-row .rv{font-size:.72rem;color:var(--acc);font-weight:700;min-width:34px;text-align:right}
+
+/* color-by select */
+.sel-styled{
+  width:100%;background:var(--surf2);border:1px solid var(--bdr);
+  color:var(--txt);border-radius:7px;padding:5px 8px;font-size:.76rem;cursor:pointer;outline:none;
+}
+.sel-styled:focus{border-color:var(--acc)}
+
+/* ── Stats grid ── */
+#stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:0 16px}
+.sc{background:var(--surf2);border:1px solid var(--bdr);border-radius:8px;padding:8px 10px}
+.sc .sk{font-size:.6rem;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px}
+.sc .sv{font-size:.98rem;font-weight:800;color:var(--txt);margin-top:2px}
+
+/* ── Thumbnail strip ── */
+#thumb-strip{display:none;padding:0 16px}
+.ts-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px}
+.ts-scroll::-webkit-scrollbar{height:3px}
+.ts-scroll::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
+.thumb{
+  flex-shrink:0;width:64px;height:48px;border-radius:6px;
+  object-fit:cover;border:2px solid var(--bdr);cursor:pointer;
+  transition:border-color .15s,transform .15s;
+}
+.thumb:hover{border-color:var(--acc);transform:scale(1.05)}
+
+/* ── Download btn ── */
+#dl-btn{
+  display:none;width:calc(100% - 32px);margin:12px 16px 0;
+  background:linear-gradient(135deg,var(--acc),var(--acc2));
+  border:none;color:#000;border-radius:var(--r);padding:11px;
+  font-size:.83rem;font-weight:800;
+  align-items:center;justify-content:center;gap:7px;transition:opacity .2s,transform .1s;
+}
+#dl-btn:active{transform:scale(.98);opacity:.9}
+#dl-note{display:none;margin:6px 16px 0;font-size:.67rem;color:var(--txt3);text-align:center;line-height:1.4}
+
+/* ════════════════════════════════════════════════════
+   Map
+═══════════════════════════════════════════════════ */
+#map-wrap{flex:1;position:relative;background:#060b15}
+#map{width:100%;height:100%}
+
+/* empty state */
+#empty{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:14px;
+  pointer-events:none;z-index:10;
+}
+#empty .e-ic{font-size:4rem;opacity:.2}
+#empty p{font-size:.82rem;color:var(--txt3);text-align:center;max-width:220px;opacity:.6;line-height:1.5}
+
+/* ════════════════════════════════════════════════════
+   Popup
+═══════════════════════════════════════════════════ */
+.leaflet-popup-content-wrapper{
+  background:var(--surf)!important;border:1px solid var(--bdr)!important;
+  border-radius:12px!important;color:var(--txt)!important;
+  box-shadow:var(--shadow)!important;padding:0!important;overflow:hidden!important;
+}
+.leaflet-popup-content{margin:0!important;width:auto!important}
+.leaflet-popup-tip{background:var(--surf)!important}
+.leaflet-popup-close-button{
+  color:var(--txt2)!important;font-size:18px!important;
+  top:6px!important;right:10px!important;z-index:10;
+}
+/* popup inner */
+.pop-img-wrap{
+  width:100%;height:160px;overflow:hidden;background:var(--surf3);
+  display:flex;align-items:center;justify-content:center;
+  position:relative;
+}
+.pop-img-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+.pop-img-wrap .no-img{font-size:.75rem;color:var(--txt3);text-align:center;padding:16px}
+.pop-img-badge{
+  position:absolute;bottom:6px;left:6px;
+  background:rgba(0,0,0,.65);color:#fff;font-size:.62rem;font-weight:600;
+  padding:2px 7px;border-radius:20px;backdrop-filter:blur(4px);
+}
+.pop-body{padding:10px 12px 12px}
+.pop-id{font-size:.7rem;font-weight:800;color:var(--acc);margin-bottom:8px;
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pop-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.pf{background:var(--surf2);border-radius:6px;padding:5px 8px}
+.pk{font-size:.58rem;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px}
+.pv{font-size:.82rem;font-weight:700;margin-top:1px}
+.pop-fp{
+  margin-top:8px;background:var(--surf2);border-radius:6px;
+  padding:6px 8px;font-size:.68rem;color:var(--txt3);
+}
+.pop-fp b{color:var(--txt2)}
+
+/* dark map tiles */
+[data-theme="dark"] .leaflet-tile{filter:brightness(.8) saturate(.85)}
+
+/* ════════════════════════════════════════════════════
+   Toast
+═══════════════════════════════════════════════════ */
+#toast{
+  position:fixed;bottom:20px;left:50%;
+  transform:translateX(-50%) translateY(60px);
+  background:var(--err);color:#fff;padding:9px 18px;border-radius:8px;
+  font-size:.8rem;font-weight:600;z-index:99999;
+  transition:transform .3s,opacity .3s;opacity:0;pointer-events:none;
+  max-width:90vw;text-align:center;box-shadow:var(--shadow);
+}
+#toast.ok{background:var(--ok);color:#000}
+#toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+/* ════════════════════════════════════════════════════
+   Mobile
+═══════════════════════════════════════════════════ */
+@media(max-width:720px){
+  :root{--pw:100vw}
+  #main{flex-direction:column}
+  #panel{
+    width:100%;min-width:100%;
+    border-right:none;border-top:1px solid var(--bdr);
+    position:absolute;bottom:0;left:0;top:auto;z-index:500;
+    max-height:65vh;border-radius:16px 16px 0 0;
+    transform:translateY(100%);
+  }
+  #panel.open{transform:translateY(0)}
+  #panel::before{
+    content:'';display:block;width:36px;height:4px;
+    background:var(--bdr);border-radius:4px;margin:10px auto 0;flex-shrink:0;
+  }
+  #map-wrap{height:100%;flex:1}
+  #toggle-panel-btn{display:flex!important}
+  .pop-img-wrap{height:130px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════ TOP BAR ═══════════════════════ -->
+<div id="topbar">
+  <div class="logo">
+    <div class="logo-ic">🌾</div>
+    <div class="logo-tx">
+      <b>CropView</b>
+      <small>ZIP Field Mapper</small>
+    </div>
+  </div>
+  <div id="proj-pill"><span id="proj-name">—</span></div>
+  <div class="spacer"></div>
+  <button class="tbtn" id="reset-btn" style="display:none" onclick="resetApp()">
+    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/>
+    </svg>Reset
+  </button>
+  <button class="tbtn" id="toggle-panel-btn" onclick="togglePanel()">
+    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>Controls
+  </button>
+  <button class="tbtn" id="theme-btn" onclick="toggleTheme()" title="Toggle dark/light">🌙</button>
+</div>
+
+<!-- ═══════════════════════ MAIN ════════════════════════ -->
+<div id="main">
+
+  <!-- ─────────── PANEL ─────────── -->
+  <div id="panel">
+    <div id="panel-scroll">
+
+      <!-- Upload -->
+      <div class="sec">
+        <div class="sec-hd">
+          <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>Upload CropView ZIP
+        </div>
+        <div id="dropzone"
+          onclick="document.getElementById('file-in').click()"
+          ondragover="ev=>{ev.preventDefault();ev.currentTarget.classList.add('over')}"
+          ondragleave="ev=>ev.currentTarget.classList.remove('over')"
+          ondrop="handleDrop(event)">
+          <span class="dz-ic">📦</span>
+          <div class="dz-t">Drop .zip export here</div>
+          <div class="dz-s">Generated by CropView L1 app</div>
+        </div>
+        <input type="file" id="file-in" accept=".zip" onchange="handleFile(this.files[0])"/>
+      </div>
+
+      <!-- Progress -->
+      <div id="progress-wrap">
+        <div class="prog-bar-bg"><div class="prog-bar" id="prog-bar"></div></div>
+        <div id="prog-label">Unpacking…</div>
+      </div>
+
+      <!-- Project info -->
+      <div class="sec" style="margin-top:14px">
+        <div id="proj-info">
+          <div class="pinfo-card">
+            <div class="pinfo-name" id="pi-name">—</div>
+            <div class="pinfo-meta" id="pi-meta">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rotation -->
+      <div class="sec" style="margin-top:6px">
+        <div class="sec-hd">
+          <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path d="M21.5 2v6h-6"/><path d="M21.34 15.57a10 10 0 1 1-.57-8.38"/>
+          </svg>Rotation Offset
+        </div>
+        <div class="rot-presets">
+          <button class="rp-btn on" data-v="0"   onclick="setPreset(this)">0°</button>
+          <button class="rp-btn"    data-v="45"  onclick="setPreset(this)">45°</button>
+          <button class="rp-btn"    data-v="90"  onclick="setPreset(this)">90°</button>
+          <button class="rp-btn"    data-v="135" onclick="setPreset(this)">135°</button>
+          <button class="rp-btn"    data-v="180" onclick="setPreset(this)">180°</button>
+        </div>
+        <div class="custom-row">
+          <input type="number" id="cust-in" min="0" max="360" placeholder="Custom °"
+            oninput="setCustom(+this.value)"/>
+          <label>degrees</label>
+        </div>
+        <div class="dir-wrap">
+          <button class="dir-btn on" id="dir-ccw" onclick="setDir('ccw')">
+            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+            </svg>Anti-clockwise
+          </button>
+          <button class="dir-btn" id="dir-cw" onclick="setDir('cw')">
+            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 3h5v5"/>
+            </svg>Clockwise
+          </button>
+        </div>
+      </div>
+
+      <!-- Layers -->
+      <div class="sec" style="margin-top:14px">
+        <div class="sec-hd">
+          <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+            <polyline points="2 17 12 22 22 17"/>
+            <polyline points="2 12 12 17 22 12"/>
+          </svg>Map Layers
+        </div>
+        <div class="tog-row">
+          <span class="tl">Ground footprint polygon</span>
+          <label class="sw"><input type="checkbox" id="tog-fp" checked onchange="redraw()"/><span class="sl"></span></label>
+        </div>
+        <div class="tog-row">
+          <span class="tl">Azimuth arrow</span>
+          <label class="sw"><input type="checkbox" id="tog-arr" checked onchange="redraw()"/><span class="sl"></span></label>
+        </div>
+        <div class="tog-row">
+          <span class="tl">Computed FOV cone</span>
+          <label class="sw"><input type="checkbox" id="tog-cone" onchange="redraw()"/><span class="sl"></span></label>
+        </div>
+        <div class="tog-row">
+          <span class="tl">Capture path</span>
+          <label class="sw"><input type="checkbox" id="tog-path" checked onchange="redraw()"/><span class="sl"></span></label>
+        </div>
+        <div class="range-row">
+          <span class="rl">Arrow length</span>
+          <input type="range" id="sl-len" min="30" max="800" value="150"
+            oninput="arrowLen=+this.value;document.getElementById('sl-len-v').textContent=this.value+'m';redraw()"/>
+          <span class="rv" id="sl-len-v">150m</span>
+        </div>
+        <div style="margin-bottom:4px">
+          <div style="font-size:.73rem;color:var(--txt2);margin-bottom:5px">Colour by</div>
+          <select class="sel-styled" id="sel-col" onchange="redraw()">
+            <option value="azimuth">Azimuth</option>
+            <option value="tilt">Tilt</option>
+            <option value="altitude">Altitude</option>
+            <option value="index">Index</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Image Viewer -->
+      <div class="sec" id="viewer-sec" style="display:none;margin-top:14px">
+        <div class="sec-hd">
+          <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>Viewing
+        </div>
+        <div id="viewer-card" style="background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden;margin-bottom:10px">
+          <div id="viewer-img-wrap" style="width:100%;height:200px;background:var(--surf3);display:flex;align-items:center;justify-content:center;overflow:hidden">
+            <img id="viewer-img" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy"/>
+          </div>
+          <div style="padding:10px 12px">
+            <div style="font-size:.7rem;font-weight:800;color:var(--acc);margin-bottom:6px;word-break:break-all" id="viewer-id">—</div>
+            <div id="viewer-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px">
+            </div>
+            <div style="background:var(--surf3);border-radius:6px;padding:6px 8px;font-size:.67rem;color:var(--txt3);line-height:1.5">
+              <b style="color:var(--txt2)">Footprint:</b> <span id="viewer-fp">—</span><br/>
+              <b style="color:var(--txt2)">Time:</b> <span id="viewer-ts">—</span>
+            </div>
+          </div>
+        </div>
+        <button onclick="closeViewer()" style="width:100%;background:var(--surf2);border:1px solid var(--bdr);color:var(--txt2);padding:7px;border-radius:8px;font-size:.75rem;font-weight:600;cursor:pointer;transition:background .15s">Close Viewer</button>
+      </div>
+
+      <!-- Stats -->
+      <div class="sec" style="margin-top:14px">
+        <div class="sec-hd">
+          <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>Summary
+        </div>
+        <div id="stats-grid">
+          <div class="sc"><div class="sk">Captures</div><div class="sv" id="st-n">—</div></div>
+          <div class="sc"><div class="sk">Images</div><div class="sv" id="st-img">—</div></div>
+          <div class="sc"><div class="sk">Avg Azimuth</div><div class="sv" id="st-az">—</div></div>
+          <div class="sc"><div class="sk">Avg Tilt</div><div class="sv" id="st-tl">—</div></div>
+          <div class="sc"><div class="sk">Avg Alt (m)</div><div class="sv" id="st-alt">—</div></div>
+          <div class="sc"><div class="sk">HFOV</div><div class="sv" id="st-fov">—</div></div>
+        </div>
+      </div>
+
+      <!-- Thumbs -->
+      <div class="sec" style="margin-top:14px">
+        <div class="sec-hd">
+          <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>Images
+        </div>
+        <div id="thumb-strip">
+          <div class="ts-scroll" id="thumb-row"></div>
+        </div>
+        <div id="no-imgs" style="font-size:.71rem;color:var(--txt3)">No images loaded yet.</div>
+      </div>
+
+      <!-- Download -->
+      <button id="dl-btn" onclick="downloadMap()">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download Map HTML
+      </button>
+      <div id="dl-note">⚠️ Embedded images may make the file large. Open in any browser — no server needed.</div>
+
+    </div><!-- /panel-scroll -->
+  </div><!-- /panel -->
+
+  <!-- ─────────── MAP ─────────── -->
+  <div id="map-wrap">
+    <div id="empty">
+      <div class="e-ic">🗺️</div>
+      <p>Upload a CropView ZIP export to visualise captures on the map</p>
+    </div>
+    <div id="map"></div>
+  </div>
+
+</div><!-- /main -->
+
+<div id="toast"></div>
+
+<!-- ═══════════════════════ JS ════════════════════════ -->
+<script>
+// ── State ─────────────────────────────────────────────────────────────
+let captures  = [];       // [{id,lat,lon,azimuth,tilt,hfov,alt,accuracy,fpW,fpD,fovPoly,imgName,imgUrl,imgB64,ts,project}]
+let rotOffset = 0;
+let rotDir    = 'ccw';
+let arrowLen  = 150;
+let isDark    = true;
+let mapReady  = false;
+let projectName = '';
+let theMap, gFP, gArrow, gCone, gPath, gPts;
+let imgBlobs  = {};   // imgName -> blob URL
+let imgB64s   = {};   // imgName -> base64 data-url (for download)
+
+// ── Theme ──────────────────────────────────────────────────────────────
+function toggleTheme(){
+  isDark = !isDark;
+  document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+  document.getElementById('theme-btn').textContent = isDark ? '🌙' : '☀️';
+  document.getElementById('meta-tc').content = isDark ? '#080d1a' : '#eef2f9';
+}
+
+// ── Panel (mobile) ────────────────────────────────────────────────────
+function togglePanel(){ document.getElementById('panel').classList.toggle('open') }
+
+// ── Toast ─────────────────────────────────────────────────────────────
+function showToast(msg, type='err', ms=3800){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = (type === 'ok' ? 'ok' : '') + ' show';
+  clearTimeout(t._tid);
+  t._tid = setTimeout(()=>t.classList.remove('show'), ms);
+}
+
+// ── Reset ──────────────────────────────────────────────────────────────
+function resetApp(){
+  captures = []; imgBlobs = {}; imgB64s = {};
+  rotOffset = 0; rotDir = 'ccw'; arrowLen = 150;
+  projectName = '';
+  document.getElementById('file-in').value = '';
+  document.getElementById('proj-pill').style.display = 'none';
+  document.getElementById('reset-btn').style.display = 'none';
+  document.getElementById('dl-btn').style.display = 'none';
+  document.getElementById('dl-note').style.display = 'none';
+  document.getElementById('proj-info').style.display = 'none';
+  document.getElementById('viewer-sec').style.display = 'none';
+  document.getElementById('empty').style.display = 'flex';
+  document.getElementById('thumb-strip').style.display = 'none';
+  document.getElementById('no-imgs').style.display = 'block';
+  document.getElementById('progress-wrap').style.display = 'none';
+  document.querySelectorAll('.rp-btn').forEach(b=>b.classList.toggle('on', b.dataset.v==='0'));
+  document.getElementById('dir-ccw').classList.add('on');
+  document.getElementById('dir-cw').classList.remove('on');
+  document.getElementById('cust-in').value = '';
+  document.getElementById('sl-len').value = 150;
+  document.getElementById('sl-len-v').textContent = '150m';
+  updateStats();
+  if(gFP){ gFP.clearLayers(); gArrow.clearLayers(); gCone.clearLayers(); gPath.clearLayers(); gPts.clearLayers(); }
+}
+
+// ── Drop / File ────────────────────────────────────────────────────────
+function handleDrop(ev){
+  ev.preventDefault(); ev.currentTarget.classList.remove('over');
+  const f = ev.dataTransfer.files[0];
+  if(f) handleFile(f);
+}
+async function handleFile(file){
+  if(!file) return;
+  if(!file.name.toLowerCase().endsWith('.zip')){ showToast('Please upload a .zip file'); return; }
+  setProgress(5, 'Opening ZIP…');
+  document.getElementById('progress-wrap').style.display = 'block';
+  try {
+    const buf = await file.arrayBuffer();
+    setProgress(15, 'Extracting files…');
+    const zip = await JSZip.loadAsync(buf);
+    await parseZip(zip);
+  } catch(e) {
+    showToast('Error reading ZIP: ' + e.message);
+    document.getElementById('progress-wrap').style.display = 'none';
+  }
+}
+
+function setProgress(pct, label){
+  document.getElementById('prog-bar').style.width = pct + '%';
+  document.getElementById('prog-label').textContent = label;
+}
+
+// ── Parse ZIP ──────────────────────────────────────────────────────────
+async function parseZip(zip){
+  // Find points GeoJSON
+  const geoKey = Object.keys(zip.files).find(k => k.endsWith('_captures_points.geojson') || k.includes('captures_points'));
+  if(!geoKey){ showToast('No captures_points.geojson found in ZIP'); document.getElementById('progress-wrap').style.display='none'; return; }
+  setProgress(25, 'Parsing GeoJSON…');
+  const geoText = await zip.files[geoKey].async('string');
+  const geo = JSON.parse(geoText);
+
+  // project name from metadata or filename
+  projectName = (geo.metadata && geo.metadata.project) || geoKey.split('/').pop().replace('_captures_points.geojson','');
+
+  // Build captures
+  captures = geo.features.map((f,i) => {
+    const p = f.properties;
+    const coords = f.geometry.coordinates; // [lon, lat, alt]
+    // fov_polygon: polygon ring [[lon,lat],...]
+    const fovPoly = (f.fov_polygon && f.fov_polygon.coordinates && f.fov_polygon.coordinates[0])
+      ? f.fov_polygon.coordinates[0].map(c => [c[1], c[0]]) // convert [lon,lat] -> [lat,lon] for Leaflet
+      : null;
+    return {
+      i, id: p.id,
+      lat: coords[1], lon: coords[0], alt: coords[2] || 0,
+      azimuth: p.azimuth_deg || p.heading_deg || 0,
+      tilt:    p.tilt_deg  || 0,
+      hfov:    p.hfov_deg  || 65,
+      accuracy: p.gps_accuracy_m || 0,
+      fpW: p.footprint_width_m  || 0,
+      fpD: p.footprint_depth_m  || 0,
+      imgName: p.imgName || '',
+      ts:    p.timestamp || '',
+      project: p.project || projectName,
+      fovPolyOrig: fovPoly,  // original Leaflet [lat,lon] coords
+      fovPoly: fovPoly,      // rotated version (updated on redraw)
+      imgUrl:  null,
+      imgB64:  null,
+    };
+  });
+
+  setProgress(40, 'Loading images…');
+  // Load images
+  const imgFiles = Object.keys(zip.files).filter(k => /\.(jpg|jpeg|png|webp)$/i.test(k));
+  let loaded = 0;
+  for(const k of imgFiles){
+    const fname = k.split('/').pop();
+    const b64 = await zip.files[k].async('base64');
+    const ext  = fname.split('.').pop().toLowerCase();
+    const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    const dataUrl = 'data:' + mime + ';base64,' + b64;
+    imgB64s[fname]  = dataUrl;
+    imgBlobs[fname] = dataUrl; // reuse base64 as display URL (avoids revoking)
+    loaded++;
+    setProgress(40 + Math.round(loaded/imgFiles.length * 40), `Loading image ${loaded}/${imgFiles.length}…`);
+  }
+
+  // Link images to captures
+  captures.forEach(c => {
+    if(c.imgName && imgBlobs[c.imgName]){
+      c.imgUrl = imgBlobs[c.imgName];
+      c.imgB64 = imgB64s[c.imgName];
+    }
+  });
+
+  setProgress(85, 'Rendering map…');
+  updateUI();
+  initMap();
+  redraw();
+  setProgress(100, 'Done!');
+  setTimeout(()=>{ document.getElementById('progress-wrap').style.display='none'; }, 600);
+  if(window.innerWidth <= 720) document.getElementById('panel').classList.remove('open');
+}
+
+// ── Update UI after load ───────────────────────────────────────────────
+function updateUI(){
+  document.getElementById('empty').style.display = 'none';
+  document.getElementById('proj-pill').style.display = 'flex';
+  document.getElementById('proj-name').textContent = projectName;
+  document.getElementById('reset-btn').style.display = 'flex';
+  document.getElementById('dl-btn').style.display = 'flex';
+  document.getElementById('dl-note').style.display = 'block';
+
+  // Project info card
+  const nCaptures = captures.length;
+  const nImgs = Object.keys(imgBlobs).length;
+  document.getElementById('proj-info').style.display = 'block';
+  document.getElementById('pi-name').textContent = projectName;
+  const ts0 = captures[0]?.ts ? new Date(captures[0].ts).toLocaleDateString() : '—';
+  document.getElementById('pi-meta').innerHTML =
+    `<span>${nCaptures}</span> captures &nbsp;·&nbsp; <span>${nImgs}</span> images &nbsp;·&nbsp; ${ts0}`;
+
+  updateStats();
+  buildThumbs();
+}
+
+function updateStats(){
+  const n = captures.length;
+  const avg = arr => n ? (arr.reduce((a,b)=>a+b,0)/n).toFixed(1) : '—';
+  document.getElementById('st-n').textContent   = n || '—';
+  document.getElementById('st-img').textContent = Object.keys(imgBlobs).length || '—';
+  document.getElementById('st-az').textContent  = n ? avg(captures.map(c=>c.azimuth))+'°' : '—';
+  document.getElementById('st-tl').textContent  = n ? avg(captures.map(c=>c.tilt))+'°' : '—';
+  document.getElementById('st-alt').textContent = n ? avg(captures.map(c=>c.alt)).toString() : '—';
+  const fovs = [...new Set(captures.map(c=>c.hfov))];
+  document.getElementById('st-fov').textContent = n ? (fovs.length===1 ? fovs[0]+'°' : 'mix') : '—';
+}
+
+function buildThumbs(){
+  const row = document.getElementById('thumb-row');
+  row.innerHTML = '';
+  const imgs = captures.filter(c=>c.imgUrl);
+  if(!imgs.length){ document.getElementById('no-imgs').style.display='block'; return; }
+  document.getElementById('no-imgs').style.display = 'none';
+  document.getElementById('thumb-strip').style.display = 'block';
+  imgs.forEach((c,i)=>{
+    const img = document.createElement('img');
+    img.className = 'thumb'; img.src = c.imgUrl;
+    img.title = c.imgName;
+    img.onclick = () => {
+      if(!theMap) return;
+      theMap.setView([c.lat, c.lon], 17);
+      openViewer(c);
+      document.getElementById('panel').classList.remove('open');
+    };
+    row.appendChild(img);
+  });
+}
+
+// ── Map ────────────────────────────────────────────────────────────────
+function initMap(){
+  if(!mapReady){
+    const clat = captures.reduce((s,c)=>s+c.lat,0)/captures.length;
+    const clon = captures.reduce((s,c)=>s+c.lon,0)/captures.length;
+    theMap = L.map('map').setView([clat,clon], 16);
+    
+    // ── Tile layers ──
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom:22
+    });
+    
+    const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+      attribution:'Esri, DigitalGlobe, Earthstar Geographics, CNES/Airbus DS',
+      maxZoom:18,
+      crossOrigin: true
+    });
+    
+    const usgsImagery = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}',{
+      attribution:'USGS',
+      maxZoom:16
+    });
+    
+    const usgsTopo = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',{
+      attribution:'USGS',
+      maxZoom:16
+    });
+    
+    const cartoPositron = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',{
+      attribution:'CartoDB',
+      maxZoom:19
+    });
+    
+    const cartoVoyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastered/{z}/{x}/{y}.png',{
+      attribution:'CartoDB',
+      maxZoom:20
+    });
+
+    // ── Hybrid layer (Esri Satellite with labels via CartoDB) ──
+    const hybridLayer = L.layerGroup([
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+        attribution:'Esri',
+        maxZoom:18,
+        crossOrigin: true
+      }),
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/labels_only/{z}/{x}/{y}.png',{
+        attribution:'CartoDB',
+        maxZoom:20,
+        pane: 'overlayPane'
+      })
+    ]);
+    
+    // Add default layer
+    osmLayer.addTo(theMap);
+    
+    // Layer control
+    const baseLayers = {
+      '🗺️ Street Map': osmLayer,
+      '🛰️ Satellite (Esri)': esriSatellite,
+      '🗺️ Hybrid (Satellite+Labels)': hybridLayer,
+      '📸 USGS Imagery': usgsImagery,
+      '⛰️ USGS Topographic': usgsTopo,
+      '🏙️ CartoDB Light': cartoPositron,
+      '🌍 CartoDB Voyager': cartoVoyager
+    };
+    
+    const layerControl = L.control.layers(baseLayers, null, {
+      position: 'topleft',
+      collapsed: true
+    });
+    layerControl.addTo(theMap);
+    
+    // Style layer control
+    setTimeout(()=>{
+      const lc = document.querySelector('.leaflet-control-layers');
+      if(lc){
+        lc.style.background = 'var(--surf)';
+        lc.style.border = '1px solid var(--bdr)';
+        lc.style.borderRadius = '8px';
+        lc.style.padding = '0';
+        const labels = lc.querySelectorAll('label');
+        labels.forEach(l => {
+          l.style.color = 'var(--txt)';
+          l.style.padding = '6px 12px';
+          l.style.fontSize = '.76rem';
+          l.style.margin = '0';
+        });
+        const checkbox = lc.querySelectorAll('input[type=radio]');
+        checkbox.forEach(c => { c.style.accentColor = 'var(--acc)'; });
+      }
+    }, 100);
+    
+    gFP    = L.layerGroup().addTo(theMap);
+    gCone  = L.layerGroup().addTo(theMap);
+    gArrow = L.layerGroup().addTo(theMap);
+    gPath  = L.layerGroup().addTo(theMap);
+    gPts   = L.layerGroup().addTo(theMap);
+    mapReady = true;
+  } else {
+    const clat = captures.reduce((s,c)=>s+c.lat,0)/captures.length;
+    const clon = captures.reduce((s,c)=>s+c.lon,0)/captures.length;
+    theMap.setView([clat,clon], 16);
+  }
+}
+
+// ── Geo helpers ────────────────────────────────────────────────────────
+function destPt(lat,lon,bearDeg,distM){
+  const R=6371000,δ=distM/R,θ=bearDeg*Math.PI/180;
+  const φ1=lat*Math.PI/180,λ1=lon*Math.PI/180;
+  const φ2=Math.asin(Math.sin(φ1)*Math.cos(δ)+Math.cos(φ1)*Math.sin(δ)*Math.cos(θ));
+  const λ2=λ1+Math.atan2(Math.sin(θ)*Math.sin(δ)*Math.cos(φ1),Math.cos(δ)-Math.sin(φ1)*Math.sin(φ2));
+  return [φ2*180/Math.PI, λ2*180/Math.PI];
+}
+
+// Rotate a list of [lat,lon] points around a center [lat,lon] by angleDeg (positive=CW)
+function rotatePoly(pts, cLat, cLon, angleDeg){
+  if(angleDeg === 0) return pts;
+  const rad = angleDeg * Math.PI / 180;
+  const cosA = Math.cos(rad), sinA = Math.sin(rad);
+  const mPerDegLat = 111320;
+  const mPerDegLon = 111320 * Math.cos(cLat * Math.PI / 180);
+  return pts.map(([lat,lon]) => {
+    const dy = (lat - cLat) * mPerDegLat;   // N (metres)
+    const dx = (lon - cLon) * mPerDegLon;   // E (metres)
+    const rx = dx * cosA - dy * sinA;
+    const ry = dx * sinA + dy * cosA;
+    return [cLat + ry/mPerDegLat, cLon + rx/mPerDegLon];
+  });
+}
+
+function effectiveAz(az){
+  const off = rotDir==='ccw' ? -rotOffset : rotOffset;
+  return ((az + off) % 360 + 360) % 360;
+}
+
+// ── Colour ─────────────────────────────────────────────────────────────
+function getColor(c){
+  const mode = document.getElementById('sel-col').value;
+  const vals = captures.map(x => mode==='azimuth'?x.azimuth : mode==='tilt'?x.tilt : mode==='altitude'?x.alt : x.i);
+  const mn=Math.min(...vals), mx=Math.max(...vals);
+  const v = mode==='azimuth'?c.azimuth : mode==='tilt'?c.tilt : mode==='altitude'?c.alt : c.i;
+  const t = mx===mn ? 0.5 : (v-mn)/(mx-mn);
+  return `hsl(${240-240*t},80%,55%)`;
+}
+
+// ── Image Viewer ──────────────────────────────────────────────────────
+function openViewer(capture){
+  const c = capture;
+  document.getElementById('viewer-sec').style.display = 'block';
+  document.getElementById('viewer-id').textContent = c.id;
+  document.getElementById('viewer-img').src = c.imgUrl || c.imgB64 || '';
+  
+  const grid = document.getElementById('viewer-grid');
+  grid.innerHTML = `
+    <div class="pf"><div class="pk">Latitude</div><div class="pv" style="font-size:.75rem">${c.lat.toFixed(6)}</div></div>
+    <div class="pf"><div class="pk">Longitude</div><div class="pv" style="font-size:.75rem">${c.lon.toFixed(6)}</div></div>
+    <div class="pf"><div class="pk">Azimuth</div><div class="pv" style="color:#f59e0b">${c.azimuth}°</div></div>
+    <div class="pf"><div class="pk">Tilt</div><div class="pv" style="color:#34d399">${c.tilt}°</div></div>
+    <div class="pf"><div class="pk">HFOV</div><div class="pv" style="color:#a78bfa">${c.hfov}°</div></div>
+    <div class="pf"><div class="pk">Altitude</div><div class="pv" style="color:#38bdf8">${typeof c.alt==='number'?c.alt.toFixed(1):c.alt}m</div></div>
+    <div class="pf"><div class="pk">Accuracy</div><div class="pv" style="font-size:.75rem">±${c.accuracy}m</div></div>
+    <div class="pf"><div class="pk">Project</div><div class="pv" style="font-size:.7rem">${c.project}</div></div>
+  `;
+  
+  const ts = c.ts ? new Date(c.ts).toLocaleString() : '—';
+  document.getElementById('viewer-fp').textContent = `${c.fpW.toFixed(0)}m × ${c.fpD.toFixed(0)}m`;
+  document.getElementById('viewer-ts').textContent = ts;
+  
+  // Scroll to top of panel to show viewer
+  document.getElementById('panel-scroll').scrollTop = 0;
+  // Close panel on mobile after viewer opens
+  if(window.innerWidth <= 720) {
+    // Keep panel open so user can see the image
+  }
+}
+
+function closeViewer(){
+  document.getElementById('viewer-sec').style.display = 'none';
+}
+
+// ── Redraw ─────────────────────────────────────────────────────────────
+function redraw(){
+  if(!mapReady) return;
+  const showFP   = document.getElementById('tog-fp').checked;
+  const showArr  = document.getElementById('tog-arr').checked;
+  const showCone = document.getElementById('tog-cone').checked;
+  const showPath = document.getElementById('tog-path').checked;
+
+  gFP.clearLayers(); gArrow.clearLayers(); gCone.clearLayers();
+  gPath.clearLayers(); gPts.clearLayers();
+
+  // Path
+  if(showPath && captures.length > 1){
+    L.polyline(captures.map(c=>[c.lat,c.lon]),{
+      color:'#334155',weight:2,dashArray:'7 5',opacity:.65
+    }).addTo(gPath);
+  }
+
+  captures.forEach((c,i) => {
+    const col = getColor(c);
+    const eaz = effectiveAz(c.azimuth);
+    const rotAngle = rotDir==='ccw' ? -rotOffset : rotOffset; // CW positive for rotatePoly
+
+    // ── Ground footprint polygon (rotated) ──
+    if(showFP && c.fovPolyOrig){
+      const rotated = rotatePoly(c.fovPolyOrig, c.lat, c.lon, rotAngle);
+      L.polygon(rotated, {
+        color: col, fillColor: col, fillOpacity: 0.12,
+        weight: 1.5, opacity: 0.6
+      }).addTo(gFP);
+    }
+
+    // ── Computed FOV cone ──
+    if(showCone){
+      const half = c.hfov/2;
+      const pts  = [[c.lat,c.lon]];
+      for(let s=0;s<=24;s++) pts.push(destPt(c.lat,c.lon, eaz-half+(c.hfov*s/24), arrowLen*1.5));
+      pts.push([c.lat,c.lon]);
+      L.polygon(pts,{color:col,fillColor:col,fillOpacity:.13,weight:1,opacity:.5,dashArray:'4 3'}).addTo(gCone);
+    }
+
+    // ── Arrow ──
+    if(showArr){
+      const tip = destPt(c.lat,c.lon,eaz,arrowLen);
+      L.polyline([[c.lat,c.lon],tip],{color:col,weight:2.5,opacity:.9}).addTo(gArrow);
+      const lh = destPt(tip[0],tip[1],eaz+150,arrowLen*.2);
+      const rh = destPt(tip[0],tip[1],eaz-150,arrowLen*.2);
+      L.polygon([tip,lh,rh],{color:col,fillColor:col,fillOpacity:1,weight:0}).addTo(gArrow);
+    }
+
+    // ── Marker ──
+    const mk = L.circleMarker([c.lat,c.lon],{
+      radius:9, color:'#fff', weight:2, fillColor:col, fillOpacity:.95,
+      bubblingMouseEvents: false
+    }).addTo(gPts);
+    mk.on('click', L.DomEvent.stopPropagation).on('click', () => { openViewer(c); });
+    
+    const numMarker = L.marker([c.lat,c.lon],{icon:L.divIcon({
+      html:`<div style="width:16px;height:16px;line-height:16px;text-align:center;font-size:9px;font-weight:800;color:#fff;cursor:pointer">${i+1}</div>`,
+      className:'',iconAnchor:[8,8]
+    })}).addTo(gPts);
+    numMarker.on('click', L.DomEvent.stopPropagation).on('click', () => { openViewer(c); });
+  });
+}
+
+// ── Rotation controls ─────────────────────────────────────────────────
+function setPreset(btn){
+  document.querySelectorAll('.rp-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  rotOffset = +btn.dataset.v;
+  document.getElementById('cust-in').value = '';
+  redraw();
+}
+function setCustom(v){
+  if(isNaN(v)||v<0) return;
+  rotOffset = v % 360;
+  document.querySelectorAll('.rp-btn').forEach(b=>b.classList.remove('on'));
+  redraw();
+}
+function setDir(d){
+  rotDir = d;
+  document.getElementById('dir-ccw').classList.toggle('on', d==='ccw');
+  document.getElementById('dir-cw').classList.toggle('on',  d==='cw');
+  redraw();
+}
+
+// ── Download ───────────────────────────────────────────────────────────
+function downloadMap(){
+  if(!captures.length){ showToast('No data to export'); return; }
+  showToast('Generating HTML… please wait', 'ok', 5000);
+  setTimeout(()=>{
+    try{
+      const html = buildExportHTML();
+      const blob = new Blob([html],{type:'text/html'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (projectName||'captures') + '_map.html';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      showToast('Download started!', 'ok');
+    } catch(e){ showToast('Export failed: '+e.message) }
+  }, 50);
+}
+
+function buildExportHTML(){
+  const rotA  = rotDir==='ccw' ? -rotOffset : rotOffset;
+  const cData = JSON.stringify(captures.map(c=>({
+    id:c.id, lat:c.lat, lon:c.lon, alt:c.alt,
+    azimuth:c.azimuth, tilt:c.tilt, hfov:c.hfov,
+    accuracy:c.accuracy, fpW:c.fpW, fpD:c.fpD,
+    ts:c.ts, project:c.project, imgName:c.imgName,
+    imgB64: c.imgB64 || null,
+    fovPolyOrig: c.fovPolyOrig || null,
+  })));
+  const center=[
+    captures.reduce((s,c)=>s+c.lat,0)/captures.length,
+    captures.reduce((s,c)=>s+c.lon,0)/captures.length
+  ];
+
+  return `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>${projectName} – CropView Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"><\/script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;font-family:system-ui,sans-serif;background:#080d1a;color:#e8f0fe}
+#bar{height:50px;background:#0f1626;border-bottom:1px solid #253047;
+     display:flex;align-items:center;padding:0 16px;gap:10px}
+#bar h1{font-size:.88rem;font-weight:800;color:#e8f0fe}
+#bar h1 span{color:#22d3ee}
+.badge{background:#1e3a5f;color:#7dd3fc;font-size:.68rem;padding:2px 8px;border-radius:20px;font-weight:700}
+#ctrl{background:#0f1626;border-bottom:1px solid #253047;padding:6px 14px;
+      display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+#ctrl label{font-size:.72rem;color:#94a3b8;display:flex;align-items:center;gap:4px}
+#ctrl input[type=checkbox]{accent-color:#22d3ee}
+#ctrl input[type=range]{accent-color:#22d3ee;width:90px}
+#ctrl select{background:#182035;color:#e8f0fe;border:1px solid #253047;border-radius:6px;padding:2px 6px;font-size:.72rem}
+#map{height:calc(100vh - 50px - 40px)}
+.leaflet-tile{filter:brightness(.8) saturate(.85)}
+.leaflet-popup-content-wrapper{background:#0f1626!important;border:1px solid #253047!important;
+  border-radius:12px!important;color:#e8f0fe!important;padding:0!important;overflow:hidden!important}
+.leaflet-popup-content{margin:0!important;width:auto!important}
+.leaflet-popup-tip{background:#0f1626!important}
+.leaflet-popup-close-button{color:#94a3b8!important;font-size:17px!important;top:5px!important;right:9px!important}
+.piw{width:100%;height:150px;overflow:hidden;background:#182035;display:flex;align-items:center;justify-content:center}
+.piw img{width:100%;height:100%;object-fit:cover}
+.piw .ni{font-size:.72rem;color:#475569;padding:12px}
+.pib{position:relative}
+.pb{padding:9px 12px 11px}
+.pid{font-size:.68rem;font-weight:800;color:#22d3ee;margin-bottom:7px}
+.pg{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.pf{background:#182035;border-radius:6px;padding:4px 7px}
+.pk{font-size:.57rem;color:#475569;text-transform:uppercase}
+.pv{font-size:.8rem;font-weight:700}
+.pex{margin-top:7px;background:#182035;border-radius:6px;padding:5px 7px;font-size:.66rem;color:#64748b}
+.pex b{color:#94a3b8}
+#ri{position:fixed;bottom:12px;left:12px;background:rgba(8,13,26,.88);border:1px solid #253047;
+    border-radius:8px;padding:7px 12px;font-size:.7rem;color:#64748b;z-index:1000}
+#ri strong{color:#22d3ee}
+</style>
+</head><body>
+<div id="bar">
+  <h1>🌾 CropView — <span>${projectName}</span></h1>
+  <span class="badge">${captures.length} captures</span>
+  <span style="flex:1"></span>
+  <span style="font-size:.68rem;color:#334155">Offset: ${rotOffset}° ${rotDir==='ccw'?'CCW':'CW'}</span>
+</div>
+<div id="ctrl">
+  <label><input type="checkbox" id="c-fp" checked onchange="rd()"> Footprint</label>
+  <label><input type="checkbox" id="c-ar" checked onchange="rd()"> Arrow</label>
+  <label><input type="checkbox" id="c-cn" onchange="rd()"> Cone</label>
+  <label><input type="checkbox" id="c-pt" checked onchange="rd()"> Path</label>
+  <label>Len <input type="range" id="sl" min="30" max="800" value="${arrowLen}"
+    oninput="al=+this.value;document.getElementById('sv').textContent=al+'m';rd()"> <span id="sv">${arrowLen}m</span></label>
+  <label>By <select id="sc" onchange="rd()">
+    <option value="azimuth">Azimuth</option><option value="tilt">Tilt</option>
+    <option value="altitude">Altitude</option><option value="index">Index</option>
+  </select></label>
+</div>
+<div id="map"></div>
+<div id="ri">Rotation: <strong>${rotOffset}° ${rotDir==='ccw'?'anti-clockwise':'clockwise'}</strong></div>
+<script>
+const CAP=${cData};
+let al=${arrowLen};
+const RA=${rotA};
+function dp(la,lo,b,d){
+  const R=6371000,δ=d/R,θ=b*Math.PI/180,φ1=la*Math.PI/180,λ1=lo*Math.PI/180;
+  const φ2=Math.asin(Math.sin(φ1)*Math.cos(δ)+Math.cos(φ1)*Math.sin(δ)*Math.cos(θ));
+  const λ2=λ1+Math.atan2(Math.sin(θ)*Math.sin(δ)*Math.cos(φ1),Math.cos(δ)-Math.sin(φ1)*Math.sin(φ2));
+  return[φ2*180/Math.PI,λ2*180/Math.PI];
+}
+function rp(pts,cLa,cLo,a){
+  if(!a)return pts;
+  const r=a*Math.PI/180,ca=Math.cos(r),sa=Math.sin(r);
+  const mLa=111320,mLo=111320*Math.cos(cLa*Math.PI/180);
+  return pts.map(([la,lo])=>{
+    const dy=(la-cLa)*mLa,dx=(lo-cLo)*mLo;
+    return[cLa+(dx*sa+dy*ca)/mLa,cLo+(dx*ca-dy*sa)/mLo];
+  });
+}
+function gc(c){
+  const m=document.getElementById('sc').value;
+  const vs=CAP.map(x=>m==='azimuth'?x.azimuth:m==='tilt'?x.tilt:m==='altitude'?x.alt:CAP.indexOf(x));
+  const mn=Math.min(...vs),mx=Math.max(...vs);
+  const v=m==='azimuth'?c.azimuth:m==='tilt'?c.tilt:m==='altitude'?c.alt:CAP.indexOf(c);
+  const t=mx===mn?.5:(v-mn)/(mx-mn);
+  return'hsl('+(240-240*t)+',80%,55%)';
+}
+function eaz(az){return((az+RA)%360+360)%360;}
+const M=L.map('map').setView([${center[0]},${center[1]}],16);
+const bl={
+  '🗺️ Street':(M=>L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {attribution:'© OpenStreetMap',maxZoom:22}))(M),
+  '🛰️ Satellite':(M=>L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {attribution:'Esri',maxZoom:18}))(M),
+  '🗺️ Hybrid':(M=>L.layerGroup([
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      {attribution:'Esri',maxZoom:18}),
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/labels_only/{z}/{x}/{y}.png',
+      {attribution:'CartoDB',maxZoom:20,pane:'overlayPane'})
+  ]))(M),
+  '📸 USGS':(M=>L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}',
+    {attribution:'USGS',maxZoom:16}))(M),
+};
+bl['🗺️ Street'].addTo(M);
+L.control.layers(bl,null,{position:'topleft',collapsed:true}).addTo(M);
+let gF=L.layerGroup().addTo(M),gC=L.layerGroup().addTo(M),
+    gA=L.layerGroup().addTo(M),gP=L.layerGroup().addTo(M),gK=L.layerGroup().addTo(M);
+function rd(){
+  gF.clearLayers();gC.clearLayers();gA.clearLayers();gP.clearLayers();gK.clearLayers();
+  if(document.getElementById('c-pt').checked&&CAP.length>1)
+    L.polyline(CAP.map(c=>[c.lat,c.lon]),{color:'#334155',weight:2,dashArray:'7 5',opacity:.6}).addTo(gP);
+  CAP.forEach((c,i)=>{
+    const col=gc(c),az=eaz(c.azimuth),half=c.hfov/2;
+    if(document.getElementById('c-fp').checked&&c.fovPolyOrig)
+      L.polygon(rp(c.fovPolyOrig,c.lat,c.lon,RA),{color:col,fillColor:col,fillOpacity:.12,weight:1.5,opacity:.6}).addTo(gF);
+    if(document.getElementById('c-cn').checked){
+      const pts=[[c.lat,c.lon]];
+      for(let s=0;s<=24;s++)pts.push(dp(c.lat,c.lon,az-half+(c.hfov*s/24),al*1.5));
+      pts.push([c.lat,c.lon]);
+      L.polygon(pts,{color:col,fillColor:col,fillOpacity:.13,weight:1,opacity:.5,dashArray:'4 3'}).addTo(gC);
+    }
+    if(document.getElementById('c-ar').checked){
+      const t=dp(c.lat,c.lon,az,al);
+      L.polyline([[c.lat,c.lon],t],{color:col,weight:2.5,opacity:.9}).addTo(gA);
+      L.polygon([t,dp(t[0],t[1],az+150,al*.2),dp(t[0],t[1],az-150,al*.2)],
+        {color:col,fillColor:col,fillOpacity:1,weight:0}).addTo(gA);
+    }
+    const mk=L.circleMarker([c.lat,c.lon],{radius:9,color:'#fff',weight:2,fillColor:col,fillOpacity:.95}).addTo(gK);
+    L.marker([c.lat,c.lon],{icon:L.divIcon({
+      html:'<div style="width:16px;height:16px;line-height:16px;text-align:center;font-size:9px;font-weight:800;color:#fff">'+(i+1)+'</div>',
+      className:'',iconAnchor:[8,8]
+    })}).addTo(gK);
+    const ts=c.ts?new Date(c.ts).toLocaleString():'—';
+    const im=c.imgB64?'<div class="piw"><img src="'+c.imgB64+'"/></div>':'<div class="piw"><div class="ni">No image</div></div>';
+    mk.bindPopup('<div style="width:280px">'+im+'<div class="pb"><div class="pid">'+c.id+'</div><div class="pg">'+
+      '<div class="pf"><div class="pk">Lat</div><div class="pv" style="font-size:.74rem">'+c.lat.toFixed(6)+'</div></div>'+
+      '<div class="pf"><div class="pk">Lon</div><div class="pv" style="font-size:.74rem">'+c.lon.toFixed(6)+'</div></div>'+
+      '<div class="pf"><div class="pk">Azimuth</div><div class="pv" style="color:#f59e0b">'+c.azimuth+'°</div></div>'+
+      '<div class="pf"><div class="pk">Tilt</div><div class="pv" style="color:#34d399">'+c.tilt+'°</div></div>'+
+      '<div class="pf"><div class="pk">HFOV</div><div class="pv" style="color:#a78bfa">'+c.hfov+'°</div></div>'+
+      '<div class="pf"><div class="pk">Alt</div><div class="pv" style="color:#38bdf8">'+(typeof c.alt==='number'?c.alt.toFixed(1):c.alt)+'m</div></div>'+
+      '</div><div class="pex"><b>Footprint:</b> '+c.fpW.toFixed(0)+'m × '+c.fpD.toFixed(0)+'m &nbsp;·&nbsp; GPS ±'+c.accuracy+'m<br><b>Time:</b> '+ts+'</div>'+
+      '</div></div>',{maxWidth:300,minWidth:280});
+  });
+}
+rd();
+<\/script>
+</body></html>`;
+}
+</script>
+</body>
+</html>
