@@ -896,7 +896,7 @@ function destPt(lat,lon,bearDeg,distM){
   return [φ2*180/Math.PI, λ2*180/Math.PI];
 }
 
-// Rotate a list of [lat,lon] points around a center [lat,lon] by angleDeg (positive=CW)
+// Rotate a list of [lat,lon] points around a center [lat,lon] by angleDeg (positive=CW compass bearing)
 function rotatePoly(pts, cLat, cLon, angleDeg){
   if(angleDeg === 0) return pts;
   const rad = angleDeg * Math.PI / 180;
@@ -906,8 +906,8 @@ function rotatePoly(pts, cLat, cLon, angleDeg){
   return pts.map(([lat,lon]) => {
     const dy = (lat - cLat) * mPerDegLat;   // N (metres)
     const dx = (lon - cLon) * mPerDegLon;   // E (metres)
-    const rx = dx * cosA - dy * sinA;
-    const ry = dx * sinA + dy * cosA;
+    const rx = dx * cosA + dy * sinA;
+    const ry = dy * cosA - dx * sinA;
     return [cLat + ry/mPerDegLat, cLon + rx/mPerDegLon];
   });
 }
@@ -1161,7 +1161,7 @@ function rp(pts,cLa,cLo,a){
   const mLa=111320,mLo=111320*Math.cos(cLa*Math.PI/180);
   return pts.map(([la,lo])=>{
     const dy=(la-cLa)*mLa,dx=(lo-cLo)*mLo;
-    return[cLa+(dx*sa+dy*ca)/mLa,cLo+(dx*ca-dy*sa)/mLo];
+    return[cLa+(dy*ca-dx*sa)/mLa,cLo+(dx*ca+dy*sa)/mLo];
   });
 }
 function gc(c){
