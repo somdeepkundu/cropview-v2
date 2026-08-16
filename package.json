@@ -1,6 +1,6 @@
 {
   "name": "cropview-v2",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "CropView v2 — single-file PWA for geo-tagged field crop capture with corrected directionality",
   "main": "index.html",
   "scripts": {

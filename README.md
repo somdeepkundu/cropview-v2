@@ -4,7 +4,14 @@
 
 A free, open-source single-file PWA for field researchers and agronomists. Point your phone at a crop; capture its location, heading, and ground field-of-view; match it to satellite data.
 
-**Version 2.0.0** · Layer 1 of 3 · MIT License
+**Version 2.0.1** · Layer 1 of 3 · MIT License
+
+---
+
+## Changelog
+
+- **2.0.1** — Fixed `cropview-zip-uploader.html`'s Rotation Offset control rotating the footprint polygon opposite to the azimuth arrow/FOV cone, causing them to diverge whenever a non-zero offset was applied.
+- **2.0.0** — Directionality rebuild (see below).
 
 ---
 

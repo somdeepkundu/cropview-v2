@@ -310,7 +310,7 @@
   <div id="about-box">
     <div id="about-x" onclick="closeAboutDirect()">✕</div>
     <div class="alogo">CROP<span>VIEW</span></div>
-    <div class="aver">Version 2.0.0 · Layer 1 of 3 · 2026 · Directionality Rebuild</div>
+    <div class="aver">Version 2.0.1 · Layer 1 of 3 · 2026 · Directionality Rebuild</div>
 
     <div class="asec">
       <h4>👨‍🔬 Developed By</h4>
@@ -363,7 +363,7 @@
 
   <!-- HEADER -->
 <div id="header">
-  <div class="logo">CROP<span>VIEW</span> <span style="color:var(--green)">v2.0.0</span><span class="proj" id="hproj">—</span></div>
+  <div class="logo">CROP<span>VIEW</span> <span style="color:var(--green)">v2.0.1</span><span class="proj" id="hproj">—</span></div>
   <div id="hdr-right">
     <span id="cap-badge">0 cap</span>
     <div id="gps-btn" onclick="openGPS()" style="font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 10px;cursor:pointer;transition:all .2s">📡 GPS</div>
@@ -925,7 +925,7 @@ async function doZIP(){
 
 function buildGJ(){
   return{type:'FeatureCollection',
-    metadata:{app:'CropView L1',version:'2.0.0',project:S.proj.name,notes:S.proj.notes,exported:new Date().toISOString(),captures:S.caps.length},
+    metadata:{app:'CropView L1',version:'2.0.1',project:S.proj.name,notes:S.proj.notes,exported:new Date().toISOString(),captures:S.caps.length},
     features:S.caps.map(c=>({type:'Feature',
       geometry:{type:'Point',coordinates:[c.lon,c.lat,c.altitude||0]},
       properties:{id:c.id,imgName:(c.imgName||c.id)+'.jpg',timestamp:c.timestamp,project:c.project,
@@ -957,7 +957,7 @@ function buildFootprintsGJ(){
       }
     }));
   return{type:'FeatureCollection',
-    metadata:{app:'CropView L1',version:'2.0.0',project:S.proj.name,
+    metadata:{app:'CropView L1',version:'2.0.1',project:S.proj.name,
       description:'FOV ground footprint polygons for all captures. Use for satellite pixel sampling in Layer 2.',
       exported:new Date().toISOString(),total:features.length},
     features};
